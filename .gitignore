@@ -1,0 +1,23 @@
+# Compiled binaries/executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test binary outputs
+*.test
+
+# Output of go coverage tool
+*.out
+
+# Go modules vendor directory 
+# (Uncomment the line below if you don't explicitly want to commit your vendor folder)
+vendor/
+node_modules/
+
+# IDE settings (GoLand, VS Code)
+.idea/
+.vscode/
+

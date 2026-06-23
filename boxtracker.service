@@ -1,0 +1,23 @@
+[Unit]
+Description=BoxTracker Web Application
+After=network.target mongod.service
+
+[Service]
+Type=simple
+User=sabrodigan
+WorkingDirectory=/home/sabrodigan/boxTracker
+ExecStart=/home/sabrodigan/boxTracker/server_linux_amd64
+Restart=on-failure
+RestartSec=5
+# Need capability to bind to port 80 without being root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+Environment="MONGO_URI=mongodb://boxtracker_user:boxtracker_secure_pass_2026@localhost:27017/boxtracker?authSource=boxtracker"
+Environment="ENV=production"
+Environment="GOOGLE_CLIENT_ID=your_google_client_id_here"
+Environment="GOOGLE_CLIENT_SECRET=your_google_client_secret_here"
+Environment="FACEBOOK_CLIENT_ID=your_facebook_client_id_here"
+Environment="FACEBOOK_CLIENT_SECRET=your_facebook_client_secret_here"
+
+[Install]
+WantedBy=multi-user.target
