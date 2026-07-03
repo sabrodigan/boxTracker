@@ -48,7 +48,7 @@ export async function printBoxLabel(box: Box) {
       <div class="label">
         <img class="qr" src="${dataUrl}" alt="QR code" />
         <div class="meta">
-          <p class="num">STORAGE BOX</p>
+          <p class="num">STORAGE BOX ${box.boxNumber ? `#${escape(box.boxNumber.slice(-4))}` : ""}</p>
           <h1 class="name">${escape(box.name)}</h1>
           <p class="loc">${escape(box.location)}</p>
         </div>

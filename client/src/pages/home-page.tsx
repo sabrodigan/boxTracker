@@ -10,12 +10,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link, useLocation } from "wouter";
-import { SearchIcon, PlusIcon, PackageIcon, LogOutIcon, MapPinIcon, PrinterIcon, Package2Icon } from "lucide-react";
+import { SearchIcon, PlusIcon, PackageIcon, LogOutIcon, MapPinIcon, PrinterIcon, Package2Icon, StarIcon, DownloadIcon } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { QrScannerDialog } from "@/components/qr-scanner-dialog";
 import { SmallQrCode } from "@/components/small-qr-code";
 import { printBoxLabel } from "@/lib/print-label";
 import { useState, useMemo } from "react";
 import { EditItemDialog } from "@/components/edit-item-dialog";
+import { Footer } from "@/components/footer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Item = {
@@ -36,6 +38,7 @@ export default function HomePage() {
   const [isAddBoxOpen, setIsAddBoxOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sortOrder, setSortOrder] = useState<"numerical" | "alphabetical">("numerical");
+  const [showImportantOnly, setShowImportantOnly] = useState(false);
   const [, setLocation] = useLocation();
 
   const { data: boxes = [] } = useQuery<(Box & { itemCount: number })[]>({
@@ -43,13 +46,17 @@ export default function HomePage() {
   });
 
   const sortedBoxes = useMemo(() => {
-    return [...boxes].sort((a, b) => {
+    let filtered = boxes;
+    if (showImportantOnly) {
+      filtered = boxes.filter(b => b.isImportant);
+    }
+    return [...filtered].sort((a, b) => {
       if (sortOrder === "numerical") {
         return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
       }
       return a.name.localeCompare(b.name);
     });
-  }, [boxes, sortOrder]);
+  }, [boxes, sortOrder, showImportantOnly]);
 
   const { data: searchResults = [] } = useQuery<SearchResult[]>({
     queryKey: ["/api/search", searchQuery],
@@ -79,11 +86,12 @@ export default function HomePage() {
     defaultValues: {
       name: "",
       location: "",
+      isImportant: false,
     },
   });
 
   const addBoxMutation = useMutation({
-    mutationFn: async (data: { name: string; location: string }) => {
+    mutationFn: async (data: { name: string; location: string; isImportant?: boolean }) => {
       const res = await apiRequest("POST", "/api/boxes", data);
       return res.json();
     },
@@ -94,32 +102,54 @@ export default function HomePage() {
     },
   });
 
+  const toggleImportantMutation = useMutation({
+    mutationFn: async ({ id, isImportant }: { id: string; isImportant: boolean }) => {
+      const res = await apiRequest("PUT", `/api/boxes/${id}`, { isImportant });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/boxes"] });
+    },
+  });
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b">
+      <header className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <PackageIcon className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">BoxTracker</h1>
+            <Link href="/" className="flex items-center gap-2 cursor-pointer">
+              <img src="/logo-mark.png" alt="BoxTracker Logo" className="h-8 w-8 object-contain drop-shadow-sm" />
+              <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">BoxTracker</h1>
+            </Link>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-muted-foreground">Welcome, {user?.username}</span>
+            <span className="text-sm font-medium text-muted-foreground hidden sm:inline">Welcome, {user?.username}</span>
             <Button
               variant="outline"
               size="sm"
+              className="transition-colors hover:bg-primary hover:text-primary-foreground"
+              onClick={() => window.location.href = "/api/export"}
+            >
+              <DownloadIcon className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hover:bg-primary hover:text-primary-foreground transition-colors"
               onClick={() => logoutMutation.mutate()}
               disabled={logoutMutation.isPending}
             >
-              <LogOutIcon className="h-4 w-4 mr-2" />
-              Logout
+              <LogOutIcon className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 flex-1">
         <div className="flex flex-col gap-6">
           {/* Search and Add Box */}
           <div className="flex flex-col sm:flex-row gap-4">
@@ -187,6 +217,13 @@ export default function HomePage() {
                 <SelectItem value="alphabetical">Alphabetical</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={showImportantOnly ? "default" : "outline"}
+              onClick={() => setShowImportantOnly(!showImportantOnly)}
+            >
+              <StarIcon className={`h-4 w-4 mr-2 ${showImportantOnly ? "fill-primary-foreground" : ""}`} />
+              Important
+            </Button>
             <Dialog open={isAddBoxOpen} onOpenChange={setIsAddBoxOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -227,6 +264,23 @@ export default function HomePage() {
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={form.control}
+                        name="isImportant"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel>Mark as Important</FormLabel>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
                       <Button type="submit" className="w-full" disabled={addBoxMutation.isPending}>
                         {addBoxMutation.isPending ? "Adding..." : "Add Box"}
                       </Button>
@@ -263,7 +317,19 @@ export default function HomePage() {
                       .map(box => (
                         <div key={box.id} className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <h3 className="font-semibold truncate">{box.name}</h3>
+                            <h3 className="font-semibold truncate">
+                              {box.name} {box.boxNumber && <span className="text-muted-foreground font-mono text-sm ml-2">(#{box.boxNumber.slice(-4)})</span>}
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  toggleImportantMutation.mutate({ id: box.id, isImportant: !box.isImportant });
+                                }}
+                                className="ml-2 inline-flex items-center justify-center align-middle focus:outline-none"
+                              >
+                                <StarIcon className={`h-4 w-4 ${box.isImportant ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                              </button>
+                            </h3>
                             <div className="flex items-center text-muted-foreground">
                               <MapPinIcon className="h-4 w-4 mr-1" />
                               <span className="text-sm truncate">{box.location}</span>
@@ -305,7 +371,19 @@ export default function HomePage() {
                       <div key={box.id} className="space-y-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <h3 className="text-lg font-semibold truncate">{box.name}</h3>
+                            <h3 className="text-lg font-semibold truncate">
+                              {box.name} {box.boxNumber && <span className="text-muted-foreground font-mono text-sm ml-2">(#{box.boxNumber.slice(-4)})</span>}
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  toggleImportantMutation.mutate({ id: box.id, isImportant: !box.isImportant });
+                                }}
+                                className="ml-2 inline-flex items-center justify-center align-middle focus:outline-none"
+                              >
+                                <StarIcon className={`h-4 w-4 ${box.isImportant ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                              </button>
+                            </h3>
                             <div className="flex items-center text-muted-foreground">
                               <MapPinIcon className="h-4 w-4 mr-2" />
                               <span className="text-sm truncate">{box.location}</span>
@@ -349,14 +427,26 @@ export default function HomePage() {
           {!searchQuery && (
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {sortedBoxes.map((box) => (
-                <Card key={box.id} className="hover:border-primary transition-colors relative">
+                <Card key={box.id} className="hover:border-primary/50 border hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden bg-card/80 backdrop-blur-sm">
                   <CardContent className="p-6">
                     <div className="absolute top-6 right-6">
                       <SmallQrCode token={box.qrToken} />
                     </div>
                     <Link href={`/box/${box.id}`}>
                       <div className="flex flex-col gap-2 cursor-pointer pr-14">
-                        <h3 className="text-lg font-semibold">{box.name}</h3>
+                        <h3 className="text-lg font-semibold">
+                          {box.name} {box.boxNumber && <span className="text-muted-foreground font-mono text-sm ml-2">(#{box.boxNumber.slice(-4)})</span>}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              toggleImportantMutation.mutate({ id: box.id, isImportant: !box.isImportant });
+                            }}
+                            className="ml-2 inline-flex items-center justify-center align-middle focus:outline-none"
+                          >
+                            <StarIcon className={`h-4 w-4 ${box.isImportant ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary"}`} />
+                          </button>
+                        </h3>
                         <div className="flex items-center text-muted-foreground">
                           <MapPinIcon className="h-4 w-4 mr-2" />
                           <span className="text-sm">{box.location}</span>
@@ -365,7 +455,7 @@ export default function HomePage() {
                     </Link>
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center text-sm text-muted-foreground" data-testid={`box-item-count-${box.id}`}>
-                        <Package2Icon className="h-4 w-4 mr-1" />
+                        <img src="/logo-box.png" alt="box icon" className="h-4 w-4 mr-1 object-contain" />
                         <span>{box.itemCount} {box.itemCount === 1 ? "item" : "items"}</span>
                       </div>
                       <Button
@@ -387,6 +477,7 @@ export default function HomePage() {
           )}
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

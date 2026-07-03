@@ -14,9 +14,10 @@ import (
 var (
 	client  *mongo.Client
 	db      *mongo.Database
-	userCol *mongo.Collection
-	boxCol  *mongo.Collection
-	itemCol *mongo.Collection
+	userCol    *mongo.Collection
+	boxCol     *mongo.Collection
+	itemCol    *mongo.Collection
+	counterCol *mongo.Collection
 )
 
 func InitDB() {
@@ -45,6 +46,7 @@ func InitDB() {
 	userCol = db.Collection("users")
 	boxCol = db.Collection("boxes")
 	itemCol = db.Collection("items")
+	counterCol = db.Collection("counters")
 
 	// Create unique index for username
 	indexModel := mongo.IndexModel{
@@ -62,4 +64,20 @@ func InitDB() {
 		Options: options.Index().SetUnique(true),
 	}
 	_, _ = boxCol.Indexes().CreateOne(context.Background(), qrIndex)
+}
+
+func getNextBoxSequence(ctx context.Context) (int, error) {
+	opts := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
+	filter := bson.M{"_id": "box_sequence"}
+	update := bson.M{"$inc": bson.M{"seq": 1}}
+
+	var result struct {
+		Seq int `bson:"seq"`
+	}
+
+	err := counterCol.FindOneAndUpdate(ctx, filter, update, opts).Decode(&result)
+	if err != nil {
+		return 0, err
+	}
+	return result.Seq, nil
 }

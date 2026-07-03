@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertUserSchema } from "@shared/schema";
 import { Redirect } from "wouter";
 import { Package2Icon } from "lucide-react";
+import { Footer } from "@/components/footer";
 
 function getNextPath(): string {
   if (typeof window === "undefined") return "/";
@@ -41,11 +42,12 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2">
-      <div className="flex items-center justify-center p-8">
-        <Card className="w-full max-w-md">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 grid md:grid-cols-2">
+        <div className="flex items-center justify-center p-8">
+        <Card className="w-full max-w-md shadow-2xl border-primary/20 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle>Welcome to BoxTracker</CardTitle>
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Welcome to BoxTracker</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login">
@@ -168,14 +170,16 @@ export default function AuthPage() {
         </Card>
       </div>
 
-      <div className="hidden md:flex flex-col items-center justify-center bg-muted p-8 text-center">
-        <Package2Icon className="h-24 w-24 mb-6 text-primary" />
-        <h1 className="text-4xl font-bold mb-4">BoxTracker</h1>
-        <p className="text-lg text-muted-foreground max-w-md">
-          Keep track of your garage storage with ease. Label boxes, catalog items,
-          and find what you need when you need it.
+      <div className="hidden md:flex flex-col items-center justify-center bg-gradient-to-br from-primary via-secondary to-accent p-8 text-center text-white">
+        <img src="/logo-app.png" alt="BoxTracker Logo" className="h-48 w-48 mb-8 drop-shadow-xl hover:scale-105 transition-transform duration-300" />
+        <h1 className="text-5xl font-extrabold mb-4 drop-shadow-sm">BoxTracker.net</h1>
+        <p className="text-xl max-w-md opacity-90 leading-relaxed font-medium">
+          Keep track of your storage with ease. Label boxes, catalog items,
+          and find what you need instantly.
         </p>
       </div>
     </div>
+    <Footer />
+  </div>
   );
 }

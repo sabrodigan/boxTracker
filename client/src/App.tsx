@@ -22,11 +22,15 @@ function Router() {
   );
 }
 
+import { SplashScreen } from "./components/splash-screen";
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router />
+        <SplashScreen>
+          <Router />
+        </SplashScreen>
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>

@@ -12,10 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Link, useParams, Redirect } from "wouter";
 import { Textarea } from "@/components/ui/textarea";
-import { Package2Icon, ArrowLeftIcon, PlusIcon, Trash2Icon, MapPinIcon, Loader2Icon, PrinterIcon, PencilIcon } from "lucide-react";
+import { Package2Icon, ArrowLeftIcon, PlusIcon, Trash2Icon, MapPinIcon, Loader2Icon, PrinterIcon, PencilIcon, StarIcon } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { BoxQrCode } from "@/components/box-qr-code";
 import { EditItemDialog } from "@/components/edit-item-dialog";
 import { printBoxLabel } from "@/lib/print-label";
+import { Footer } from "@/components/footer";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -95,17 +97,17 @@ export default function BoxPage() {
 
   const editBoxForm = useForm({
     resolver: zodResolver(insertBoxSchema),
-    defaultValues: { name: "", location: "" },
+    defaultValues: { name: "", location: "", isImportant: false },
   });
 
   useEffect(() => {
     if (box && isEditBoxOpen) {
-      editBoxForm.reset({ name: box.name, location: box.location });
+      editBoxForm.reset({ name: box.name, location: box.location, isImportant: box.isImportant || false });
     }
   }, [box, isEditBoxOpen, editBoxForm]);
 
   const editBoxMutation = useMutation({
-    mutationFn: async (data: { name: string; location: string }) => {
+    mutationFn: async (data: { name: string; location: string; isImportant?: boolean }) => {
       const res = await apiRequest("PUT", `/api/boxes/${boxId}`, data);
       return res.json();
     },
@@ -156,9 +158,9 @@ export default function BoxPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b">
+      <header className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
@@ -169,7 +171,20 @@ export default function BoxPage() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold">{box.name}</h1>
+                <h1 className="text-2xl font-bold flex items-center">
+                  {box.name} {box.boxNumber && <span className="text-muted-foreground font-mono text-xl ml-2">(#{box.boxNumber.slice(-4)})</span>}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-2 h-8 w-8"
+                    onClick={() => {
+                      editBoxMutation.mutate({ name: box.name, location: box.location, isImportant: !box.isImportant });
+                    }}
+                    disabled={editBoxMutation.isPending}
+                  >
+                    <StarIcon className={`h-5 w-5 ${box.isImportant ? "fill-primary text-primary" : "text-muted-foreground"}`} />
+                  </Button>
+                </h1>
                 <div className="flex items-center text-muted-foreground mt-1">
                   <MapPinIcon className="h-4 w-4 mr-2" />
                   <span>{box.location}</span>
@@ -194,7 +209,7 @@ export default function BoxPage() {
                 <PrinterIcon className="h-4 w-4 mr-2" />
                 Print label
               </Button>
-              <BoxQrCode boxId={box.id} token={box.qrToken} boxName={box.name} boxLocation={box.location} />
+              <BoxQrCode boxId={box.id} token={box.qrToken} boxName={box.name} boxLocation={box.location} boxNumber={box.boxNumber} />
               <Dialog open={isEditBoxOpen} onOpenChange={setIsEditBoxOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
@@ -232,6 +247,23 @@ export default function BoxPage() {
                                 <Textarea {...field} placeholder="e.g. Garage, Top Shelf, Left Wall" />
                               </FormControl>
                               <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={editBoxForm.control}
+                          name="isImportant"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel>Mark as Important</FormLabel>
+                              </div>
                             </FormItem>
                           )}
                         />
@@ -275,7 +307,7 @@ export default function BoxPage() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 flex-1">
         <div className="flex flex-col gap-6">
           {/* Add Item Button */}
           <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
@@ -331,14 +363,14 @@ export default function BoxPage() {
           {items.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center">
-                <Package2Icon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <img src="/logo-box.png" alt="box icon" className="h-12 w-12 mx-auto mb-4 object-contain opacity-50" />
                 <p className="text-muted-foreground">No items in this box yet</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4">
               {items.map((item) => (
-                <Card key={item.id}>
+                <Card key={item.id} className="hover:border-primary/50 transition-colors bg-card/80 backdrop-blur-sm hover:shadow-md">
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start">
                       <div>
@@ -402,6 +434,7 @@ export default function BoxPage() {
           )}
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

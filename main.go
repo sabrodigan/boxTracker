@@ -64,6 +64,7 @@ func main() {
 	protected.HandleFunc("/items/{id}/move", moveItemHandler).Methods("PATCH")
 
 	protected.HandleFunc("/search", searchHandler).Methods("GET")
+	protected.HandleFunc("/export", exportCSVHandler).Methods("GET")
 
 	// Serve the static React build
 	spa := spaHandler{staticPath: "dist/public", indexPath: "index.html"}

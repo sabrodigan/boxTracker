@@ -11,9 +11,10 @@ type Props = {
   token: string;
   boxName: string;
   boxLocation: string;
+  boxNumber?: string;
 };
 
-export function BoxQrCode({ boxId, token, boxName, boxLocation }: Props) {
+export function BoxQrCode({ boxId, token, boxName, boxLocation, boxNumber }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
   const [open, setOpen] = useState(false);
@@ -29,7 +30,7 @@ export function BoxQrCode({ boxId, token, boxName, boxLocation }: Props) {
   }, [qrValue, open]);
 
   const handlePrint = () => {
-    const box: Box = { id: boxId, qrToken: token, name: boxName, location: boxLocation, userId: 0 };
+    const box: Box = { id: boxId, qrToken: token, name: boxName, location: boxLocation, boxNumber: boxNumber || "", userId: "0" };
     void printBoxLabel(box);
   };
 
@@ -50,7 +51,7 @@ export function BoxQrCode({ boxId, token, boxName, boxLocation }: Props) {
             <canvas ref={canvasRef} className="rounded shrink-0" style={{ width: 144, height: 144 }} />
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                Box #{boxId}
+                {boxNumber ? `Box #${boxNumber.slice(-4)}` : `Box #${boxId.slice(-4)}`}
               </p>
               <p className="text-lg font-bold leading-tight truncate">{boxName}</p>
               <p className="text-sm text-muted-foreground truncate">{boxLocation}</p>
