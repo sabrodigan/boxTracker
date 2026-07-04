@@ -86,6 +86,7 @@ func createBoxHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getBoxHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	boxID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
@@ -94,7 +95,7 @@ func getBoxHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var box Box
-	err = boxCol.FindOne(context.Background(), bson.M{"_id": boxID}).Decode(&box)
+	err = boxCol.FindOne(context.Background(), bson.M{"_id": boxID, "user_id": user.ID}).Decode(&box)
 	if err != nil {
 		http.Error(w, "Box not found", http.StatusNotFound)
 		return
@@ -117,6 +118,7 @@ func getBoxByQRHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateBoxHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	boxID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
@@ -145,20 +147,30 @@ func updateBoxHandler(w http.ResponseWriter, r *http.Request) {
 		updateDoc["is_important"] = *updateData.IsImportant
 	}
 
+	// Scope all access to the box owned by the current user.
+	filter := bson.M{"_id": boxID, "user_id": user.ID}
 	if len(updateDoc) > 0 {
-		_, err = boxCol.UpdateOne(context.Background(), bson.M{"_id": boxID}, bson.M{"$set": updateDoc})
+		res, err := boxCol.UpdateOne(context.Background(), filter, bson.M{"$set": updateDoc})
 		if err != nil {
 			http.Error(w, "Failed to update box", http.StatusInternalServerError)
+			return
+		}
+		if res.MatchedCount == 0 {
+			http.Error(w, "Box not found", http.StatusNotFound)
 			return
 		}
 	}
 
 	var box Box
-	boxCol.FindOne(context.Background(), bson.M{"_id": boxID}).Decode(&box)
+	if err := boxCol.FindOne(context.Background(), filter).Decode(&box); err != nil {
+		http.Error(w, "Box not found", http.StatusNotFound)
+		return
+	}
 	jsonResponse(w, http.StatusOK, box)
 }
 
 func deleteBoxHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	boxID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
@@ -166,20 +178,28 @@ func deleteBoxHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = itemCol.DeleteMany(context.Background(), bson.M{"box_id": boxID})
-	if err != nil {
-		http.Error(w, "Failed to delete items", http.StatusInternalServerError)
-		return
-	}
-	_, err = boxCol.DeleteOne(context.Background(), bson.M{"_id": boxID})
+	// Delete the box only if it belongs to the current user.
+	res, err := boxCol.DeleteOne(context.Background(), bson.M{"_id": boxID, "user_id": user.ID})
 	if err != nil {
 		http.Error(w, "Failed to delete box", http.StatusInternalServerError)
+		return
+	}
+	if res.DeletedCount == 0 {
+		http.Error(w, "Box not found", http.StatusNotFound)
+		return
+	}
+
+	// Remove the box's items (scoped to the same user).
+	_, err = itemCol.DeleteMany(context.Background(), bson.M{"box_id": boxID, "user_id": user.ID})
+	if err != nil {
+		http.Error(w, "Failed to delete items", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func getItemsHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	boxID, err := primitive.ObjectIDFromHex(vars["boxId"])
 	if err != nil {
@@ -187,7 +207,7 @@ func getItemsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cursor, err := itemCol.Find(context.Background(), bson.M{"box_id": boxID})
+	cursor, err := itemCol.Find(context.Background(), bson.M{"box_id": boxID, "user_id": user.ID})
 	if err != nil {
 		http.Error(w, "Failed to get items", http.StatusInternalServerError)
 		return
@@ -213,6 +233,17 @@ func createItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure the target box belongs to the current user before adding items.
+	count, err := boxCol.CountDocuments(context.Background(), bson.M{"_id": boxID, "user_id": user.ID})
+	if err != nil {
+		http.Error(w, "Failed to verify box", http.StatusInternalServerError)
+		return
+	}
+	if count == 0 {
+		http.Error(w, "Box not found", http.StatusNotFound)
+		return
+	}
+
 	var item Item
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
@@ -231,6 +262,7 @@ func createItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateItemHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	itemID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
@@ -255,20 +287,30 @@ func updateItemHandler(w http.ResponseWriter, r *http.Request) {
 		updateDoc["description"] = *updateData.Description
 	}
 
+	// Scope all access to the item owned by the current user.
+	filter := bson.M{"_id": itemID, "user_id": user.ID}
 	if len(updateDoc) > 0 {
-		_, err = itemCol.UpdateOne(context.Background(), bson.M{"_id": itemID}, bson.M{"$set": updateDoc})
+		res, err := itemCol.UpdateOne(context.Background(), filter, bson.M{"$set": updateDoc})
 		if err != nil {
 			http.Error(w, "Failed to update item", http.StatusInternalServerError)
+			return
+		}
+		if res.MatchedCount == 0 {
+			http.Error(w, "Item not found", http.StatusNotFound)
 			return
 		}
 	}
 
 	var item Item
-	itemCol.FindOne(context.Background(), bson.M{"_id": itemID}).Decode(&item)
+	if err := itemCol.FindOne(context.Background(), filter).Decode(&item); err != nil {
+		http.Error(w, "Item not found", http.StatusNotFound)
+		return
+	}
 	jsonResponse(w, http.StatusOK, item)
 }
 
 func deleteItemHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	itemID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
@@ -276,15 +318,20 @@ func deleteItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = itemCol.DeleteOne(context.Background(), bson.M{"_id": itemID})
+	res, err := itemCol.DeleteOne(context.Background(), bson.M{"_id": itemID, "user_id": user.ID})
 	if err != nil {
 		http.Error(w, "Failed to delete item", http.StatusInternalServerError)
+		return
+	}
+	if res.DeletedCount == 0 {
+		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func moveItemHandler(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromSession(r)
 	vars := mux.Vars(r)
 	itemID, err := primitive.ObjectIDFromHex(vars["id"])
 	if err != nil {
@@ -305,13 +352,29 @@ func moveItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = itemCol.UpdateOne(context.Background(), bson.M{"_id": itemID}, bson.M{"$set": bson.M{"box_id": newBoxID}})
+	// Ensure the destination box belongs to the current user.
+	count, err := boxCol.CountDocuments(context.Background(), bson.M{"_id": newBoxID, "user_id": user.ID})
+	if err != nil {
+		http.Error(w, "Failed to verify box", http.StatusInternalServerError)
+		return
+	}
+	if count == 0 {
+		http.Error(w, "Box not found", http.StatusNotFound)
+		return
+	}
+
+	// Move the item only if it belongs to the current user.
+	res, err := itemCol.UpdateOne(context.Background(), bson.M{"_id": itemID, "user_id": user.ID}, bson.M{"$set": bson.M{"box_id": newBoxID}})
 	if err != nil {
 		http.Error(w, "Failed to move item", http.StatusInternalServerError)
 		return
 	}
+	if res.MatchedCount == 0 {
+		http.Error(w, "Item not found", http.StatusNotFound)
+		return
+	}
 	var item Item
-	itemCol.FindOne(context.Background(), bson.M{"_id": itemID}).Decode(&item)
+	itemCol.FindOne(context.Background(), bson.M{"_id": itemID, "user_id": user.ID}).Decode(&item)
 	jsonResponse(w, http.StatusOK, item)
 }
 
@@ -386,7 +449,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	for boxID := range boxItemsMap {
 		if _, exists := boxMap[boxID]; !exists {
 			var box Box
-			if err := boxCol.FindOne(context.Background(), bson.M{"_id": boxID}).Decode(&box); err == nil {
+			if err := boxCol.FindOne(context.Background(), bson.M{"_id": boxID, "user_id": user.ID}).Decode(&box); err == nil {
 				boxMap[box.ID] = box
 			}
 		}

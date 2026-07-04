@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/sessions"
 	"go.mongodb.org/mongo-driver/bson"
@@ -11,9 +13,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var store = sessions.NewCookieStore([]byte("development_secret_do_not_use_in_prod"))
+var store *sessions.CookieStore
 
-func init() {
+// InitSessionStore initializes the cookie session store from the SESSION_SECRET
+// environment variable. It fails closed (exits) if the secret is missing or too
+// short, so the app never runs with a weak/known signing key in production.
+func InitSessionStore() {
+	secret := os.Getenv("SESSION_SECRET")
+	if len(secret) < 32 {
+		log.Fatal("SESSION_SECRET must be set to a strong random value (at least 32 characters)")
+	}
+	store = sessions.NewCookieStore([]byte(secret))
 	store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400, // 24 hours

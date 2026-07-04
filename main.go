@@ -29,6 +29,7 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	InitSessionStore()
 	InitDB()
 	InitOAuth()
 
