@@ -71,6 +71,13 @@ func main() {
 	spa := spaHandler{staticPath: "dist/public", indexPath: "index.html"}
 	r.PathPrefix("/").Handler(spa)
 
-	log.Println("Server started on 127.0.0.1:8091")
-	log.Fatal(http.ListenAndServe("127.0.0.1:8091", r))
+	// Listen address is configurable via LISTEN_ADDR. Defaults to loopback so
+	// production (fronted by the Caddy reverse proxy) is never exposed directly.
+	// For LAN access during local development, set LISTEN_ADDR=0.0.0.0:8091.
+	addr := os.Getenv("LISTEN_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:8091"
+	}
+	log.Printf("Server started on %s", addr)
+	log.Fatal(http.ListenAndServe(addr, r))
 }
